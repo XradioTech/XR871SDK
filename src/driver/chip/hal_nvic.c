@@ -35,7 +35,6 @@
 #include "hal_base.h"
 #include "pm/pm.h"
 #include "sys/param.h"
-#include "sys/xr_debug.h"
 
 /**
  * @brief Set the handler for the specified interrupt
@@ -294,8 +293,8 @@ static int nvic_resume(struct soc_device *dev, enum suspend_state_t state)
 		FPU->FPCCR = nvic_back->fpccr;
 		FPU->FPCAR = nvic_back->fpcar;
 #endif
-		__asm(" dsb \n");
-		__asm(" isb \n");
+		__DSB();
+		__ISB();
 		HAL_DBG("a%s ok\n", __func__);
 		break;
 	default:
@@ -333,6 +332,7 @@ void HAL_NVIC_Init(void)
 	/* Enable some system fault exceptions */
 	SCB->SHCSR |= SCB_SHCSR_USGFAULTENA_Msk | SCB_SHCSR_BUSFAULTENA_Msk |
 	              SCB_SHCSR_MEMFAULTENA_Msk;
+	SCB->CCR |= SCB_CCR_DIV_0_TRP_Msk;
 
 #ifdef CONFIG_PM
 	pm_register_ops(NVIC_DEV);

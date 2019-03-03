@@ -27,6 +27,8 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#if PRJCONF_NET_EN
+
 #include <string.h>
 
 #include "net/wlan/wlan.h"
@@ -44,7 +46,9 @@
 
 #define SMARTLINK_USE_AIRKISS
 #define SMARTLINK_USE_SMARTCONFIG
+#if (PRJCONF_SOUNDCARD0_EN || PRJCONF_SOUNDCARD1_EN)
 #define SMARTLINK_USE_VOICEPRINT
+#endif
 
 #define SMARTLINK_TIME_OUT_MS 120000
 
@@ -188,7 +192,8 @@ static void smartlink_task(void *arg)
 		OS_MSleep(100);
 #endif
 	}
-	if (OS_TimeAfter(OS_JiffiesToMSecs(OS_GetJiffies()), end_time)) {
+	if (OS_TimeAfterEqual(OS_JiffiesToMSecs(OS_GetJiffies()), end_time)) {
+		CMD_DBG("%s get ssid and psk timeout\n", __func__);
 		goto out;
 	}
 	CMD_DBG("%s get ssid and psk finished\n", __func__);
@@ -437,3 +442,5 @@ enum cmd_status cmd_smartlink_exec(char *cmd)
 	}
 	return cmd_exec(cmd, g_smartlink_cmds, cmd_nitems(g_smartlink_cmds));
 }
+
+#endif /* PRJCONF_NET_EN */

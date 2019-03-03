@@ -26,8 +26,7 @@
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "sys/io.h"
-#include "kernel/os/os.h"
+
 #include "../hal_base.h"
 #include "codec.h"
 #include "hal_ac101.h"
@@ -68,6 +67,7 @@ typedef struct {
 
 #define AGC_ENABLE              0
 #define DRC_ENABLE              0
+#define HPF_ENABLE              0
 
 /*
  * Note : pll code from original tdm/i2s driver.
@@ -262,6 +262,30 @@ static void drc_enable(bool on)
 	}
 }
 
+#if HPF_ENABLE
+static void hpf_enable(bool on)
+{
+	if (on) {
+		snd_soc_update_bits(MOD_CLK_ENA, (0x1<<7), (0x1<<7));
+		snd_soc_update_bits(MOD_RST_CTRL, (0x1<<7), (0x1<<7));
+
+		snd_soc_update_bits(0x82, (0x1<<13), (0x1<<13));
+		snd_soc_update_bits(0x83, (0x1<<13), (0x1<<13));
+		snd_soc_update_bits(0xb4, (0x3<<6), (0x3<<6));
+
+	} else {
+		#if !AGC_ENABLE
+		snd_soc_update_bits(MOD_CLK_ENA, (0x1<<7), (0x0<<7));
+		snd_soc_update_bits(MOD_RST_CTRL, (0x1<<7), (0x0<<7));
+		snd_soc_update_bits(0xb4, (0x3<<6), (0x0<<6));
+		#endif
+
+		snd_soc_update_bits(0x82, (0x1<<13), (0x1<<13));
+		snd_soc_update_bits(0x83, (0x1<<13), (0x1<<13));
+	}
+}
+#endif
+
 /*
  * Set clock split ratio according to the pcm parameter.
  */
@@ -272,14 +296,14 @@ static int32_t AC101_SetClkdiv(const DAI_FmtParam *fmtParam,uint32_t sampleRate)
 	uint32_t aif1_lrlk_div = 2*fmtParam->slotWidth;
 
 	/*set BCLK/LRCK ratio*/
-	for (i = 0; i < ARRAY_SIZE(codec_aif1_lrck); i++) {
+	for (i = 0; i < HAL_ARRAY_SIZE(codec_aif1_lrck); i++) {
 		if (codec_aif1_lrck[i].aif1_lrlk_div == aif1_lrlk_div) {
 			snd_soc_update_bits(AIF1_CLK_CTRL, (0x7<<AIF1_LRCK_DIV),
 			                        ((codec_aif1_lrck[i].aif1_lrlk_bit)<<AIF1_LRCK_DIV));
 			break;
 		}
 	}
-	for (i = 0; i < ARRAY_SIZE(codec_aif1_fs); i++) {
+	for (i = 0; i < HAL_ARRAY_SIZE(codec_aif1_fs); i++) {
 		if (codec_aif1_fs[i].samplerate ==  sampleRate) {
 			snd_soc_update_bits(AIF_SR_CTRL, (0xf<<AIF1_FS),
 			                      ((codec_aif1_fs[i].aif1_srbit)<<AIF1_FS));
@@ -289,7 +313,7 @@ static int32_t AC101_SetClkdiv(const DAI_FmtParam *fmtParam,uint32_t sampleRate)
 		}
 	}
 
-	for (i = 0; i < ARRAY_SIZE(codec_aif1_wsize); i++) {
+	for (i = 0; i < HAL_ARRAY_SIZE(codec_aif1_wsize); i++) {
 		if (codec_aif1_wsize[i].aif1_wsize_val == aif1_word_size) {
 			snd_soc_update_bits(AIF1_CLK_CTRL, (0x3<<AIF1_WORK_SIZ),
 			                      ((codec_aif1_wsize[i].aif1_wsize_bit)<<AIF1_WORK_SIZ));
@@ -341,7 +365,7 @@ static int32_t AC101_SetPll(const DAI_FmtParam *fmtParam)
 			return HAL_INVALID;
 	}
 	/* freq_out = freq_in * n/(m*(2k+1)) , k=1,N=N_i+N_f */
-	for (i = 0; i < ARRAY_SIZE(codec_pll_div); i++) {
+	for (i = 0; i < HAL_ARRAY_SIZE(codec_pll_div); i++) {
 		if ((codec_pll_div[i].pll_in == fmtParam->freqIn) && (codec_pll_div[i].pll_out == fmtParam->freqOut)) {
 			m = codec_pll_div[i].m;
 			n_i = codec_pll_div[i].n_i;
@@ -659,7 +683,7 @@ static HAL_Status AC101_Setcfg(const CODEC_HWParam *param)
 	if (!param)
 		return HAL_INVALID;
 
-	snd_soc_update_bits(CHIP_AUDIO_RST, (0xffff<<0x0), (0x0101<<0x0));
+	snd_soc_update_bits(CHIP_AUDIO_RST, (0xffff<<0x0), (0x0123<<0x0));
 
 	if (param->speaker_double_used) {
 		snd_soc_update_bits(SPKOUT_CTRL, (0x1f<<SPK_VOL), (param->double_speaker_val<<SPK_VOL));
@@ -683,6 +707,10 @@ static HAL_Status AC101_Setcfg(const CODEC_HWParam *param)
 		drc_config();
 		drc_enable(1);
 	}
+
+#if HPF_ENABLE
+	hpf_enable(1);
+#endif
 
 	/*headphone calibration clock frequency select*/
 	snd_soc_update_bits(SPKOUT_CTRL, (0x7<<HPCALICKS), (0x7<<HPCALICKS));

@@ -27,8 +27,6 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdlib.h>
-#include <stdio.h>
 #include "driver/chip/flashchip/flash_chip.h"
 #include "flash_default.h"
 #include "../hal_base.h"
@@ -60,45 +58,46 @@ typedef struct EN25QHXXA_Flash
 	FlashChipBase base;
 } EN25QHXXA_Flash;
 
-#define INSTRUCT_ZCREATE(cmd, addr, dummy, data) \
-	InstructionField cmd, addr, dummy, data; \
-	do { \
-		HAL_Memset(&cmd,	0, sizeof(InstructionField)); \
-		HAL_Memset(&addr,	0, sizeof(InstructionField)); \
-		HAL_Memset(&dummy,	0, sizeof(InstructionField)); \
-		HAL_Memset(&data,	0, sizeof(InstructionField)); \
-	} while (0)
+/* internal macros for flash chip instruction */
+#define FCI_CMD(idx)    instruction[idx]
+#define FCI_ADDR(idx)   instruction[idx]
+#define FCI_DUMMY(idx)  instruction[idx]
+#define FCI_DATA(idx)   instruction[idx]
 
 int EN25QHXXA_ReadStatus(FlashChipBase *base, FlashStatus reg, uint8_t *status)
 {
 	PCHECK(base);
-	INSTRUCT_ZCREATE(cmd, addr, dummy, data);
+	InstructionField instruction[2];
 
 	if (!(reg & base->mReadStausSupport)) {
 		FLASH_NOTSUPPORT();
 		return -1;
 	}
 
+	HAL_Memset(&instruction, 0, sizeof(instruction));
+
 	if (reg == FLASH_STATUS1)
 	{
-		cmd.data = FLASH_INSTRUCTION_RDSR;
+		FCI_CMD(0).data = FLASH_INSTRUCTION_RDSR;
 	}
 	else if (reg == FLASH_STATUS2)
 	{
-		cmd.data = FLASH_INSTRUCTION_RDSR2;
+		FCI_CMD(0).data = FLASH_INSTRUCTION_RDSR2;
 	}
 	else if (reg == FLASH_STATUS3)
 	{
-		cmd.data = FLASH_INSTRUCTION_RDSR3;
+		FCI_CMD(0).data = FLASH_INSTRUCTION_RDSR3;
 	}
 	else
+	{
 		FLASH_NOWAY();
+	}
 
-	data.pdata = (uint8_t *)status;
-	data.len = 1;
-	data.line = 1;
+	FCI_DATA(1).pdata = (uint8_t *)status;
+	FCI_DATA(1).len = 1;
+	FCI_DATA(1).line = 1;
 
-	return base->driverRead(base, &cmd, NULL, NULL, &data);
+	return base->driverRead(base, &FCI_CMD(0), NULL, NULL, &FCI_DATA(1));
 }
 
 static int EN25QHXXA_WriteStatus(FlashChipBase *base, FlashStatus reg, uint8_t *status)
@@ -106,45 +105,46 @@ static int EN25QHXXA_WriteStatus(FlashChipBase *base, FlashStatus reg, uint8_t *
 	int ret;
 
 	PCHECK(base);
-	INSTRUCT_ZCREATE(cmd, addr, dummy, data);
+	InstructionField instruction[2];
 
 	if (!(reg & base->mWriteStatusSupport)) {
 		FLASH_NOTSUPPORT();
 		return HAL_INVALID;
 	}
 
-	cmd.data = FLASH_INSTRUCTION_SRWREN;
-	cmd.line = 1;
+	HAL_Memset(&instruction, 0, sizeof(instruction));
 
-	base->driverWrite(base, &cmd, NULL, NULL, NULL);
+	FCI_CMD(0).data = FLASH_INSTRUCTION_SRWREN;
+	FCI_CMD(0).line = 1;
 
-	memset(&cmd,	0, sizeof(InstructionField));
-	memset(&addr,	0, sizeof(InstructionField));
-	memset(&dummy,	0, sizeof(InstructionField));
-	memset(&data,	0, sizeof(InstructionField));
+	base->driverWrite(base, &FCI_CMD(0), NULL, NULL, NULL);
+
+	HAL_Memset(&instruction, 0, sizeof(instruction));
 
 	if (reg == FLASH_STATUS1)
 	{
-		cmd.data = FLASH_INSTRUCTION_WRSR;
+		FCI_CMD(0).data = FLASH_INSTRUCTION_WRSR;
 
-		data.pdata = (uint8_t *)status;
-		data.len = 1;
-		data.line = 1;
+		FCI_DATA(1).pdata = (uint8_t *)status;
+		FCI_DATA(1).len = 1;
+		FCI_DATA(1).line = 1;
 	}
 	else if (reg == FLASH_STATUS3)
 	{
-		cmd.data = FLASH_INSTRUCTION_WRSR3;
+		FCI_CMD(0).data = FLASH_INSTRUCTION_WRSR3;
 
-		data.pdata = (uint8_t *)status;
-		data.len = 1;
-		data.line = 1;
+		FCI_DATA(1).pdata = (uint8_t *)status;
+		FCI_DATA(1).len = 1;
+		FCI_DATA(1).line = 1;
 	}
 	else
+	{
 		FLASH_NOWAY();
+	}
 
 	base->writeEnable(base);
 
-	ret = base->driverWrite(base, &cmd, NULL, NULL, &data);
+	ret = base->driverWrite(base, &FCI_CMD(0), NULL, NULL, &FCI_DATA(1));
 
 	base->writeDisable(base);
 /*
@@ -203,14 +203,14 @@ static int EN25QHXXA_FlashDeinit(FlashChipBase * base)
 	PCHECK(base);
 
 	EN25QHXXA_Flash *impl = __containerof(base, EN25QHXXA_Flash, base);
-	free(impl);
+	HAL_Free(impl);
 
 	return 0;
 }
 
 static FlashChipBase *EN25QHXXA_FlashCtor(uint32_t arg)
 {
-	EN25QHXXA_Flash *impl = malloc(sizeof(EN25QHXXA_Flash));
+	EN25QHXXA_Flash *impl = HAL_Malloc(sizeof(EN25QHXXA_Flash));
 	uint32_t jedec = arg;
 	uint32_t size;
 	PCHECK(impl);

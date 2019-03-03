@@ -27,6 +27,8 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#if PRJCONF_NET_EN
+
 #include <string.h>
 
 #include "net/wlan/wlan.h"
@@ -56,6 +58,7 @@ static void sc_task(void *arg)
 	CMD_DBG("%s getting ssid and psk...\n", __func__);
 
 	if (wlan_smart_config_wait(SC_TIME_OUT) == WLAN_SMART_CONFIG_TIMEOUT) {
+		CMD_DBG("%s get ssid and psk timeout\n", __func__);
 		goto out;
 	}
 	CMD_DBG("%s get ssid and psk finished\n", __func__);
@@ -168,3 +171,5 @@ enum cmd_status cmd_smart_config_exec(char *cmd)
 	}
 	return cmd_exec(cmd, g_smart_config_cmds, cmd_nitems(g_smart_config_cmds));
 }
+
+#endif /* PRJCONF_NET_EN */

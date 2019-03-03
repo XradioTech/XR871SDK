@@ -19,6 +19,9 @@ __PRJ_CONFIG_BOARD := xr871_evb_main
 # set n to use lwIP 2.x.x, support dual IPv4/IPv6 stack
 # export __CONFIG_LWIP_V1 := n
 
+# set y to support bin compression
+# export __CONFIG_BIN_COMPRESS := y
+
 # ----------------------------------------------------------------------------
 # override project common config options
 # ----------------------------------------------------------------------------

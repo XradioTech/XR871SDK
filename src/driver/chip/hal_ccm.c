@@ -34,7 +34,6 @@
 
 #include "hal_base.h"
 #include "pm/pm.h"
-#include "sys/xr_debug.h"
 
 /**
  * @brief Configure AHB2 and APB clock
@@ -63,7 +62,9 @@ uint32_t HAL_CCM_BusGetAHB1Clock(void)
  */
 uint32_t HAL_CCM_BusGetAHB2Clock(void)
 {
-	uint32_t div = ((CCM->CPU_BUS_CLKCFG & CCM_AHB2_CLK_DIV_MASK) >> CCM_AHB2_CLK_DIV_SHIFT) + 1;
+	uint32_t div = HAL_GET_BIT_VAL(CCM->CPU_BUS_CLKCFG,
+	                               CCM_AHB2_CLK_DIV_SHIFT,
+	                               CCM_AHB2_CLK_DIV_VMASK) + 1;
 	return HAL_GetCPUClock() / div;
 }
 
@@ -89,7 +90,7 @@ uint32_t HAL_CCM_BusGetAPBClock(void)
 		break;
 	}
 
-	div = ((reg & CCM_APB_CLK_DIV_MASK) >> CCM_APB_CLK_DIV_SHIFT);
+	div = HAL_GET_BIT_VAL(reg, CCM_APB_CLK_DIV_SHIFT, CCM_APB_CLK_DIV_VMASK);
 	return (freq >> div);
 }
 

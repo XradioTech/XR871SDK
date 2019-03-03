@@ -38,7 +38,6 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include "driver/chip/hal_def.h"
-#include "sys/xr_debug.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -446,9 +445,9 @@ HAL_Status HAL_Flashc_Deinit();
 HAL_Status HAL_Flashc_Open();
 HAL_Status HAL_Flashc_Close();
 HAL_Status HAL_Flashc_Control(Flashc_Commands op, void *arg);
-HAL_Status HAL_Flashc_Write(FC_InstructionField *cmd, FC_InstructionField *addr, FC_InstructionField *dummy, FC_InstructionField *data, bool dma);
-HAL_Status HAL_Flashc_Read(FC_InstructionField *cmd, FC_InstructionField *addr, FC_InstructionField *dummy, FC_InstructionField *data, bool dma);
-
+HAL_Status HAL_Flashc_Transfer(int write, FC_InstructionField *cmd,
+                         FC_InstructionField *addr, FC_InstructionField *dummy,
+                         FC_InstructionField *data, bool dma);
 
 #ifdef __cplusplus
 }

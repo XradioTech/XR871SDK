@@ -148,6 +148,16 @@ extern "C" {
  * project hardware feature
  */
 
+/* gpio port bitmask for irq used */
+#ifndef PRJCONF_GPIO_PORT_IRQ_USED
+#define PRJCONF_GPIO_PORT_IRQ_USED      0xff
+#endif
+
+/* gpio port bitmask for pm backup */
+#ifndef PRJCONF_GPIO_PORT_PM_BACKUP
+#define PRJCONF_GPIO_PORT_PM_BACKUP     0xff
+#endif
+
 /* uart enable/disable */
 #ifndef PRJCONF_UART_EN
 #define PRJCONF_UART_EN                 1
@@ -227,17 +237,26 @@ extern "C" {
 
 /* network and wlan enable/disable */
 #ifndef PRJCONF_NET_EN
+#ifdef __CONFIG_CHIP_SERIES_XR32
+#define PRJCONF_NET_EN                  0
+#else
 #define PRJCONF_NET_EN                  1
+#endif
 #endif
 
 /* net pm mode enable/disable */
 #ifndef PRJCONF_NET_PM_EN
+#ifdef __CONFIG_CHIP_SERIES_XR32
+#define PRJCONF_NET_PM_EN               0
+#else
 #define PRJCONF_NET_PM_EN               1
+#endif
 #endif
 
 /* net pm mode */
 #ifndef PRJCONF_NET_PM_MODE
-#define PRJCONF_NET_PM_MODE             (PM_SUPPORT_HIBERNATION | \
+#define PRJCONF_NET_PM_MODE             (PM_SUPPORT_SLEEP       | \
+                                         PM_SUPPORT_HIBERNATION | \
                                          PM_SUPPORT_POWEROFF)
 #endif
 

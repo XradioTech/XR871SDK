@@ -27,6 +27,8 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#if PRJCONF_NET_EN
+
 #include <stdio.h>
 #include <string.h>
 #include "tls.h"
@@ -85,7 +87,7 @@ int tls_start(mbedtls_test_param *param)
 	}
 
 	if (OS_ThreadCreate(&g_tls_thread,
-	                        "",
+	                        "tls",
 	                        tls_thread_start,
 	                        (void *)tls_arg,
 	                        OS_THREAD_PRIO_APP,
@@ -97,3 +99,5 @@ int tls_start(mbedtls_test_param *param)
 	}
 	return 0;
 }
+
+#endif /* PRJCONF_NET_EN */

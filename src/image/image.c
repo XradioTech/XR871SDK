@@ -30,9 +30,9 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "flash.h"
-#include "sys/fdcm.h"
-#include "sys/image.h"
+#include "image/flash.h"
+#include "image/fdcm.h"
+#include "image/image.h"
 #include "image_debug.h"
 
 #define OTA_IMG_CFG_SEQ_CORRUPTION_TEST     0 /* make image cfg seq corruption, for test only */
@@ -353,7 +353,7 @@ static uint32_t image_get_addr(image_priv_t *img, image_seq_t seq, uint32_t id)
 		addr = IMG_SEC_ADDR(iop, seq, next_addr);
 	}
 
-	IMAGE_ERR("no section id %#x, seq %u\n", id, seq);
+	IMAGE_WRN("no section id %#x, seq %u\n", id, seq);
 	return IMAGE_INVALID_ADDR;
 }
 
@@ -400,7 +400,7 @@ uint32_t image_rw(uint32_t id, image_seg_t seg, uint32_t offset,
 	seq = iop->running_seq;
 	addr = image_get_addr(img, iop->running_seq, id);
 	if (addr == IMAGE_INVALID_ADDR) {
-		IMAGE_ERR("get section fail, seq %u, id %#x\n", seq, id);
+		IMAGE_WRN("get section fail, seq %u, id %#x\n", seq, id);
 		return 0;
 	}
 

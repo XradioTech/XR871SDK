@@ -38,7 +38,7 @@ extern const unsigned char __RAM_BASE[];	/* SRAM start address */
 __STATIC_INLINE void SystemChipAdjust(void)
 {
 #ifdef __CONFIG_CHIP_XR871
-	if (HAL_GlobalGetChipVer() <= 0xB) {
+	if (1) { //(HAL_GlobalGetChipVer() <= 0xB) {
 		HAL_MODIFY_REG(PRCM->DIG_LDO_PARAM,
 		               PRCM_DIG_LDO_BANDGAP_TRIM_MASK,
 		               7U << PRCM_DIG_LDO_BANDGAP_TRIM_SHIFT);

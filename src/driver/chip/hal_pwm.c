@@ -32,7 +32,6 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "kernel/os/os.h"
 #include "hal_base.h"
 #include "driver/chip/hal_pwm.h"
 
@@ -47,7 +46,6 @@
 #define FALLCH(ch)	(HAL_BIT(ch) * HAL_BIT(ch) * 2)
 #define PWM_IRQ_ALL_BITS	((1 << (PWM_CH_NUM << 1)) - 1)
 
-static uint32_t Cap_priv = 0;
 static uint8_t IoInitCount = 0;
 static PWM_IrqParam PWM_IrqPrivate[8];
 
@@ -147,7 +145,7 @@ static int PWM_ChClkDiv(PWM_CH_ID ch_id, PWM_ChInitParam *param)
 		temp2 = 1;
 
 	minFreq = (src_clk_freq / MAX_ENTIRE_CYCLE + temp1) / MAX_PWM_PRESCALE + temp2;
-	maxFreq = src_clk_freq / 2;
+	maxFreq = src_clk_freq;
 
 	if (param->hz > maxFreq || param->hz < minFreq)
 		return 0;
@@ -233,6 +231,18 @@ static void PWM_OutSetCycle(PWM_CH_ID ch_id, uint16_t value)
 	*reg = temp;
 }
 
+static void PWM_OutByPass(PWM_CH_ID ch_id)
+{
+	PWM_GROUP_ID group_id;
+	group_id = PWM_ChToGroup(ch_id);
+	__IO uint32_t *reg = &PWM->PCCR[group_id];
+
+	if (ch_id % 2)
+		HAL_SET_BIT(*reg, PWM_HIGH_CH_CLKBYPASS);
+	else
+		HAL_SET_BIT(*reg, PWM_LOW_CH_CLKBYPASS);
+}
+
 static int PWM_OutModeInit(PWM_CH_ID ch_id, PWM_ChInitParam *param)
 {
 	int ch_clk_freq = 0;
@@ -245,20 +255,29 @@ static int PWM_OutModeInit(PWM_CH_ID ch_id, PWM_ChInitParam *param)
 	if (ch_clk_freq == 0)
 		return -1;
 
-	if (param->hz > (ch_clk_freq / 2))
+	if (param->hz > ch_clk_freq)
 		return -1;
 
 	ch_entire_cycle = ch_clk_freq / param->hz;
 	if (ch_clk_freq % param->hz >= param->hz / 2)
 		ch_entire_cycle++;
 
-	PWM_DBG("request freq:%uHZ, actual freq:%uHZ\n", param->hz, ch_clk_freq / ch_entire_cycle);
+	PWM_DBG("request freq:%uHZ, actual freq:%dHZ\n", param->hz, ch_clk_freq / ch_entire_cycle);
+
+	if (ch_entire_cycle == 1) {
+		if (param->mode == PWM_CYCLE_MODE) {
+			PWM_OutByPass(ch_id);
+			return ch_entire_cycle;
+		} else {
+			return -1;
+		}
+	}
 
 	PWM_ChSetPolarity(ch_id, param);
 	PWM_ChSetMode(ch_id, param);
 
-	while (PWM_OutPeriodRady(ch_id) == 1)
-		OS_MSleep(10);
+	while (PWM_OutPeriodRady(ch_id))
+		HAL_MSleep(1);
 
 	PWM_OutSetCycle(ch_id, ch_entire_cycle - 1);
 
@@ -377,15 +396,6 @@ static uint32_t PWM_CycleValue(PWM_CH_ID ch_id)
 	reg = &PWM->CH_REG[ch_id].PPR;
 
 	return ((*reg & PWM_PPR_ENTIER_CYCLE) >> 16) + 1;
-}
-
-static int PWM_CycleIsReady(PWM_CH_ID ch_id)
-{
-	__IO uint32_t* reg;
-
-	reg = &PWM->CH_REG[ch_id].PCR;
-
-	return HAL_GET_BIT(*reg, PWM_PCR_PERIODRDY);
 }
 
 static void PWM_SetActCycle(PWM_CH_ID ch_id, uint16_t cycle)
@@ -548,8 +558,7 @@ HAL_Status HAL_PWM_GroupClkCfg(PWM_GROUP_ID group_id, PWM_ClkParam *param)
 	if (param->clk == PWM_CLK_HOSC) {
 		*reg &= ~PWM_SRC_CLK_SELECT;
 	} else if (param->clk == PWM_CLK_APB1){
-		HAL_SET_BIT(*reg, PWM_SRC_CLK_SELECT);
-		HAL_CLR_BIT(*reg, HAL_BIT(8));
+		HAL_MODIFY_REG(*reg, PWM_SRC_CLK_SELECT, HAL_BIT(7));
 	} else
 		return HAL_ERROR;
 
@@ -581,6 +590,8 @@ int HAL_PWM_ChInit(PWM_CH_ID ch_id, PWM_ChInitParam *param)
 	int duty_ratio = -1;
 	if (ch_id >= PWM_CH_NUM)
 		return -1;
+
+	PWM_EnableClock(ch_id, 1);
 
 	PWM_Init(ch_id);
 
@@ -636,6 +647,9 @@ int HAL_PWM_ComplementaryInit(PWM_GROUP_ID group_id, PWM_CompInitParam *param)
 	PWM_CH_ID ch_low = group_id * 2;
 	PWM_CH_ID ch_high = ch_low + 1;
 	PWM_ChInitParam ch_param;
+
+	PWM_EnableClock(ch_low, 1);
+	PWM_EnableClock(ch_high, 1);
 
 	PWM_Init(ch_low);
 	PWM_Init(ch_high);
@@ -746,6 +760,7 @@ HAL_Status HAL_PWM_EnableComplementary(PWM_GROUP_ID group_id, uint8_t en)
 	PWM_CH_ID ch_id_1 = PWM_GroupToCh1(group_id);
 	PWM_EnableClock(ch_id_0, en);
 	PWM_EnableClock(ch_id_1, en);
+
 	if (en) {
 		HAL_CLR_BIT(PWM->CER, HAL_BIT(ch_id_0) | HAL_BIT(ch_id_1));
 		HAL_SET_BIT(PWM->PER, HAL_BIT(ch_id_0) | HAL_BIT(ch_id_1));
@@ -826,14 +841,17 @@ HAL_Status HAL_PWM_ChSetDutyRatio(PWM_CH_ID ch_id, uint16_t value)
 	}
 
 	if (value > PWM_CycleValue(ch_id)) {
-		HAL_ERR("value is out of range , should <= %d\n",PWM_CycleValue(ch_id));
+		HAL_ERR("value is out of range, should <= %u\n", PWM_CycleValue(ch_id));
 		return HAL_ERROR;
 	}
 
-	while (PWM_CycleIsReady(ch_id) == 1)
-		OS_MSleep(10);
+	while (PWM_OutPeriodRady(ch_id))
+		HAL_MSleep(1);
 
 	PWM_SetActCycle(ch_id, value);
+
+	while (PWM_OutPeriodRady(ch_id))
+		HAL_MSleep(1);
 
 	return HAL_OK;
 }
@@ -918,7 +936,6 @@ PWM_CapResult HAL_PWM_CaptureResult(PWM_CaptureMode mode, PWM_CH_ID ch_id)
 {
 	PWM_CapResult result = {0, 0, 0};
 	uint16_t fall_time = 0, rise_time = 0;
-	uint32_t temp = 0;
 
 	switch (mode) {
 		case PWM_CAP_PLUSE:
@@ -935,21 +952,14 @@ PWM_CapResult HAL_PWM_CaptureResult(PWM_CaptureMode mode, PWM_CH_ID ch_id)
 			break;
 		case PWM_CAP_CYCLE:
 			if (PWM_RiseEdgeLock(ch_id)) {
-				temp = Cap_priv & (1 << ch_id);
-				if (temp) {
-					PWM_ClearFallEdgeLock(ch_id);
-					PWM_ClearRiseEdgeLock(ch_id);
-					fall_time = PWM_CRLRValue(ch_id) + 1;
-					rise_time = PWM_CFLRValue(ch_id) + 1;
+				PWM_ClearFallEdgeLock(ch_id);
+				PWM_ClearRiseEdgeLock(ch_id);
+				fall_time = PWM_CRLRValue(ch_id) + 1;
+				rise_time = PWM_CFLRValue(ch_id) + 1;
 
-					result.highLevelTime = rise_time;
-					result.lowLevelTime = fall_time;
-					result.periodTime = rise_time + fall_time;
-					Cap_priv &= ~(1 << ch_id);
-				} else {
-					PWM_ClearRiseEdgeLock(ch_id);
-					Cap_priv |= (1 << ch_id);
-				}
+				result.highLevelTime = rise_time;
+				result.lowLevelTime = fall_time;
+				result.periodTime = rise_time + fall_time;
 			}
 			break;
 		default :
